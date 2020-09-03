@@ -6,15 +6,16 @@ import { SocialUser } from './entities/social-user';
 export interface SocialAuthServiceConfig {
   autoLogin?: boolean;
   providers: { id: string; provider: LoginProvider }[];
+  errorCallback?(error: any): void;
 }
 
 /** @dynamic */
 @Injectable()
 export class SocialAuthService {
-  private static readonly ERR_LOGIN_PROVIDER_NOT_FOUND =
-    'Login provider not found';
+  private static readonly ERR_LOGIN_PROVIDER_NOT_FOUND = 'Login provider not found';
   private static readonly ERR_NOT_LOGGED_IN = 'Not logged in';
-  private static readonly ERR_NOT_INITIALIZED = 'Login providers not ready yet. Are there errors on your console?';
+  private static readonly ERR_NOT_INITIALIZED =
+    'Login providers not ready yet. Are there errors on your console?';
 
   private providers: Map<string, LoginProvider> = new Map();
   private autoLogin = false;
@@ -35,10 +36,10 @@ export class SocialAuthService {
 
   constructor(
     @Inject('SocialAuthServiceConfig')
-      config: SocialAuthServiceConfig | Promise<SocialAuthServiceConfig>,
+    config: SocialAuthServiceConfig | Promise<SocialAuthServiceConfig>,
   ) {
     if (config instanceof Promise) {
-      config.then((config) => {
+      config.then(config => {
         this.initialize(config);
       });
     } else {
@@ -49,19 +50,14 @@ export class SocialAuthService {
   private initialize(config: SocialAuthServiceConfig) {
     this.autoLogin = config.autoLogin !== undefined ? config.autoLogin : false;
 
-    config.providers.forEach((item) => {
+    config.providers.forEach(item => {
       this.providers.set(item.id, item.provider);
     });
 
-    Promise.all(
-      Array.from(this.providers.values()).map((provider) =>
-        provider.initialize(),
-      ),
-    )
+    Promise.all(Array.from(this.providers.values()).map(provider => provider.initialize()))
       .then(() => {
         this.initialized = true;
         this._initState.complete();
-
 
         if (this.autoLogin) {
           const loginStatusPromises = [];
@@ -88,7 +84,12 @@ export class SocialAuthService {
           });
         }
       })
-      .catch(console.error);
+      .catch(error => { 
+        console.error(error);
+        if (config.errorCallback) {
+          config.errorCallback(error);
+        }
+      });
   }
 
   signIn(providerId: string, signInOptions?: any): Promise<SocialUser> {
@@ -107,7 +108,7 @@ export class SocialAuthService {
               this._user = user;
               this._authState.next(user);
             })
-            .catch((err) => {
+            .catch(err => {
               reject(err);
             });
         } else {
@@ -135,7 +136,7 @@ export class SocialAuthService {
               this._user = null;
               this._authState.next(null);
             })
-            .catch((err) => {
+            .catch(err => {
               reject(err);
             });
         } else {
